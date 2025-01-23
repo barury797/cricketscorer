@@ -84,11 +84,11 @@ def get_matches():
 def get_match(url):
     sp = BeautifulSoup(session.get(url).content, 'html.parser')
 
-    timeline_elements = [e.replace('•', '.') for e in sp.select('#main-container > div.ds-relative > div > div > div.ds-flex.ds-space-x-5 > div.ds-grow > div.ds-mt-3 > div.ds-mb-2 > div:nth-child(2) > div > div.ds-border-line.ds-border-t > div > div > div.ds-flex.ds-flex-row.ds-w-full.ds-overflow-x-auto.ds-scrollbar-hide.ds-items-center.ds-space-x-2 > div').text if e != 'See all ❯']
+    timeline_elements = [element.text for element in sp.select('#main-container > div.ds-relative > div > div > div.ds-flex.ds-space-x-5 > div.ds-grow > div.ds-mt-3 > div.ds-mb-2 > div:nth-child(2) > div > div.ds-border-line.ds-border-t > div > div > div.ds-flex.ds-flex-row.ds-w-full.ds-overflow-x-auto.ds-scrollbar-hide.ds-items-center.ds-space-x-2 > div')]
+    timeline_elements = [e.replace('•', '.') for e in timeline_elements if e != 'See all ❯'] 
     th_markers = [(i,e) for i,e in enumerate(timeline_elements) if 'th' in e]
     timeline = {f"{int(m.split('th')[0])}th": [m[-1]] + timeline_elements[p+1:p+6] for p,m in th_markers}
-    if th_markers and th_markers[0][0] > 0:
-        timeline[f"{max(int(k.split('th')[0]) for k in timeline.keys())+1}th"] = timeline_elements[:th_markers[0][0]]
+    if th_markers and th_markers[0][0] > 0: timeline[f"{max(int(k.split('th')[0]) for k in timeline.keys())+1}th"] = timeline_elements[:th_markers[0][0]]
 
     m_details = {
         'match': {
