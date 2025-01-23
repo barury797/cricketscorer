@@ -10,7 +10,7 @@ class Scores(commands.Cog):
 
     @commands.command(name='score', aliases=['s'], help='Get live cricket score', usage='score <match_index>')
     async def score(self, ctx, match_index: int):
-        match_url = self.matches_data[match_index]['link']
+        match_url = self.matches_data[match_index-1]['link']
         data = await match_data(match_url, category='summary')
         if not data:
             await ctx.send("Could not fetch match data.")
@@ -46,7 +46,7 @@ class Scores(commands.Cog):
                 value=f"⠀ {scores}\n⠀ __{match_status}__" if scores else f"⠀ {match_status}", 
                 inline=False
             )
-            options.append(discord.SelectOption(label=f"{index}. {teams}", description=match_status, value=str(index-1)))
+            options.append(discord.SelectOption(label=f"{index}. {teams}", description=match_status, value=str(index)))
         
         select = Select(placeholder="Choose a match to get the score", options=options)
 
