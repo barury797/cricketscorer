@@ -49,6 +49,8 @@ async def match_data(url, category='summary'):
     # Retrieve category data
     if category == 'summary':
         return matches_summary[url]
+    elif category == 'all':
+        return matches_details[url]
     else:
         data = matches_details[url]
         return data[category] if category in data else f"Category '{category}' not found"
@@ -80,14 +82,20 @@ def get_matches():
     return m_data
 
 def get_match(url):
-
     sp = BeautifulSoup(session.get(url).content, 'html.parser')
+
+    timeline_elements = [e.replace('•', '.') for e in sp.select('#main-container > div.ds-relative > div > div > div.ds-flex.ds-space-x-5 > div.ds-grow > div.ds-mt-3 > div.ds-mb-2 > div:nth-child(2) > div > div.ds-border-line.ds-border-t > div > div > div.ds-flex.ds-flex-row.ds-w-full.ds-overflow-x-auto.ds-scrollbar-hide.ds-items-center.ds-space-x-2 > div').text if e != 'See all ❯']
+    th_markers = [(i,e) for i,e in enumerate(timeline_elements) if 'th' in e]
+    timeline = {f"{int(m.split('th')[0])}th": [m[-1]] + timeline_elements[p+1:p+6] for p,m in th_markers}
+    if th_markers and th_markers[0][0] > 0:
+        timeline[f"{max(int(k.split('th')[0]) for k in timeline.keys())+1}th"] = timeline_elements[:th_markers[0][0]]
 
     m_details = {
         'match': {
             'status': text(sp, 'p.ds-text-tight-s:nth-child(3) > span:nth-child(1)').replace('.', ''),
             'crr': text(sp, r'div.md\:ds-mt-0:nth-child(2) > div:nth-child(1) > div:nth-child(1) > span:nth-child(2)'),
             'rrr': text(sp, r'div.md\:ds-mt-0:nth-child(2) > div:nth-child(1) > div:nth-child(2) > span:nth-child(3)'),
+            'timeline': dict(sorted(timeline.items(), key=lambda x: int(x[0].split('th')[0]), reverse=True)),
         },
         'teams': {
             't1n': text(sp, 'div.ds-mt-3:nth-child(1) > div:nth-child(1) > div:nth-child(1) > a:nth-child(2) > span'),
@@ -140,19 +148,6 @@ def get_match(url):
             '4s': text(sp, 'tbody.ds-text-right:nth-child(4) > tr:nth-child(2) > td:nth-child(8)'),
             '6s': text(sp, 'tbody.ds-text-right:nth-child(4) > tr:nth-child(2) > td:nth-child(9)'),
             'spell': text(sp, 'tbody.ds-text-right:nth-child(4) > tr:nth-child(2) > td:nth-child(10)'),
-        },
-        'info': {
-            'venue': text(sp, r'.lg\:ds-border-b > tbody > tr:nth-child(1) > td > a > span'),
-            'toss': text(sp, r'.lg\:ds-border-b > tbody > tr:nth-child(2) > td:nth-child(2) > span'),
-            'series': text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(2) > div:nth-child(1) > a:nth-child(1) > span:nth-child(1)'),
-            'season': text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(4) > td:nth-child(2) > a:nth-child(1) > span:nth-child(1)'),
-            'hours': text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(5) > td:nth-child(2) > span:nth-child(1)'),
-            'matchdays': text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(6) > td:nth-child(2) > span:nth-child(1)'),
-            'umpires': [text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(7) > td:nth-child(2) > div:nth-child(1) > a:nth-child(1) > span:nth-child(2) > span:nth-child(1)'),
-                        text(sp, r'div.last\:ds-border-0:nth-child(2) > a:nth-child(1) > span:nth-child(2) > span:nth-child(1)'),
-                        text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(8) > td:nth-child(2) > div:nth-child(1) > a:nth-child(1) > span:nth-child(2) > span:nth-child(1)'),
-                        text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(2) > div:nth-child(1) > a:nth-child(1) > span:nth-child(2) > span:nth-child(1)')],
-            'referee': text(sp, r'.lg\:ds-border-b > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(2) > div:nth-child(1) > a:nth-child(1) > span:nth-child(2) > span:nth-child(1)')
         }
     }
 
@@ -172,9 +167,9 @@ def get_match(url):
 
 
 async def main():
-    print(await matches_data())
-    url = 'https://www.espncricinfo.com/series/bangladesh-premier-league-2024-25-1459492/khulna-tigers-vs-sylhet-strikers-32nd-match-1459568/live-cricket-score'
-    # print(await match_data(url, 'summary'))
+    # print(await matches_data())````
+    url = 'https://www.espncricinfo.com/series/sa20-2024-25-1437327/durban-s-super-giants-vs-paarl-royals-18th-match-1449651/live-cricket-score'
+    print(await match_data(url, 'all'))
 
 if __name__ == "__main__":
     asyncio.run(main())

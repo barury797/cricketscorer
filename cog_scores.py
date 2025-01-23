@@ -11,19 +11,20 @@ class Scores(commands.Cog):
     @commands.command(name='score', aliases=['s'], help='Get live cricket score', usage='score <match_index>')
     async def score(self, ctx, match_index: int):
         match_url = self.matches_data[match_index]['link']
-        data = await match_data(match_url, category='summary')
+        data = await match_data(match_url, category='all')
         if not data:
             await ctx.send("Could not fetch match data.")
             return
-        
-        print(data)
 
-        embed = discord.Embed(title=f"{data['t1n']} vs {data['t2n']}", color=discord.Color.green())
-        embed.add_field(name=data['t1n'], value=data['t1s'], inline=True)
-        embed.add_field(name=data['t2n'], value=data['t2s'], inline=True)
-        embed.add_field(name="Status", value=data['status'], inline=False)
-        embed.add_field(name="Current Run Rate", value=data['crr'], inline=True)
-        embed.add_field(name="Required Run Rate", value=data['rrr'], inline=True)
+        embed = discord.Embed(title=f"{data['teams']['t1n']} vs {data['teams']['t2n']}", color=discord.Color.green())
+        embed.add_field(name=data['teams']['t1n'], value=f"{data['teams']['t1s']} ({data['teams']['t1o']})", inline=True)
+        embed.add_field(name=data['teams']['t2n'], value=f"{data['teams']['t2s']} ({data['teams']['t2o']})", inline=True)
+        embed.add_field(name="Status", value=data['match']['status'], inline=False)
+        embed.add_field(name="Current Run Rate", value=data['match']['crr'], inline=True)
+        embed.add_field(name="Required Run Rate", value=data['match']['rrr'], inline=True)
+        
+        embed.add_field(name="Batters", value=f"{data['bt1']['name']} - {data['bt1']['runs']}({data['bt1']['balls']}) SR: {data['bt1']['sr']}\n{data['bt2']['name']} - {data['bt2']['runs']}({data['bt2']['balls']}) SR: {data['bt2']['sr']}", inline=False)
+        embed.add_field(name="Bowlers", value=f"{data['bw1']['name']} - {data['bw1']['wkts']}/{data['bw1']['runs']} in {data['bw1']['overs']} overs\n{data['bw2']['name']} - {data['bw2']['wkts']}/{data['bw2']['runs']} in {data['bw2']['overs']} overs", inline=False)
 
         await ctx.send(embed=embed)
 
