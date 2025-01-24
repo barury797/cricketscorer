@@ -5,26 +5,75 @@ from livescore import matches_data, match_data
 
 class Scores(commands.Cog):
     def __init__(self, bot): 
+        self.matches_data = None
         self.bot = bot
-        self.matches_data = []
 
     @commands.command(name='score', aliases=['s'], help='Get live cricket score', usage='score <match_index>')
     async def score(self, ctx, match_index: int):
-        match_url = self.matches_data[match_index-1]['link']
-        data = await match_data(match_url, category='summary')
-        if not data:
-            await ctx.send("Could not fetch match data.")
-            return
+        if not self.matches_data: self.matches_data = await matches_data() 
+        data = await match_data(self.matches_data[match_index-1]['link'], category='all')
+        print(data)
 
-        embed = discord.Embed(title=f"{data['teams']['t1n']} vs {data['teams']['t2n']}", color=discord.Color.green())
-        embed.add_field(name=data['teams']['t1n'], value=f"{data['teams']['t1s']} ({data['teams']['t1o']})", inline=True)
-        embed.add_field(name=data['teams']['t2n'], value=f"{data['teams']['t2s']} ({data['teams']['t2o']})", inline=True)
-        embed.add_field(name="Status", value=data['match']['status'], inline=False)
-        embed.add_field(name="Current Run Rate", value=data['match']['crr'], inline=True)
-        embed.add_field(name="Required Run Rate", value=data['match']['rrr'], inline=True)
+        if not data: await ctx.send("Could not fetch match data.")
         
-        embed.add_field(name="Batters", value=f"{data['bt1']['name']} - {data['bt1']['runs']}({data['bt1']['balls']}) SR: {data['bt1']['sr']}\n{data['bt2']['name']} - {data['bt2']['runs']}({data['bt2']['balls']}) SR: {data['bt2']['sr']}", inline=False)
-        embed.add_field(name="Bowlers", value=f"{data['bw1']['name']} - {data['bw1']['wkts']}/{data['bw1']['runs']} in {data['bw1']['overs']} overs\n{data['bw2']['name']} - {data['bw2']['wkts']}/{data['bw2']['runs']} in {data['bw2']['overs']} overs", inline=False)
+        embed = discord.Embed(
+            title = f"`{data['teams']['t1n']:<24} {data['teams']['t1s']:<6}`\n`{data['teams']['t2n']:<24} {data['teams']['t2s']:<6}`",
+            color = discord.Color.blue()
+        )
+        emoji_map = {
+            '•': '<:0runs:1332339862719955066>',
+            '1': '<:1run:1332339852036935812>',
+            '1w': '<:1run:1332339852036935812>',
+            '2': '<:2runs:1332339857598447748>',
+            '3': '<:3runs:1332339860559761488>',
+            '4': '<:4runs:1332339865022496828>',
+            '5': '<:5runs:1332339869904670801>',
+            '6': '<:6runs:1332339867887337594>',
+            'W': '<:wicket:1332341339169361940>'
+            # Add more mappings as needed
+        }
+
+        # Extract and flatten the timeline data with emoji replacements
+        balls = [(over, emoji_map.get(ball, ball)) for over in sorted(data['match']['timeline'].keys(), reverse=True) for ball in data['match']['timeline'][over]]
+        last_8_balls = balls[:20]
+
+        formatted_balls, prev_over = [], last_8_balls[0][0]
+        for over, ball in last_8_balls:
+            if over != prev_over: formatted_balls.append('<:divider:1332346301207023707>')
+            formatted_balls.append(ball)
+            prev_over = over
+        formatted_balls_str = ' '.join([ball for ball in formatted_balls])
+
+        # Add the field to the embed
+        embed.add_field(
+            name=data['match']['status'], 
+            value=f"{formatted_balls_str}", 
+            inline=False
+        )
+        if data['bt1']['name']:
+            bt1n = f'{data['bt1']['name']} {data['bt1']['style']}'
+            bt2n = f'{data['bt2']['name']} {data['bt2']['style']}'
+            bw1n = f'{data['bw1']['name']} {data['bw1']['style']}'
+            bw2n = f'{data['bw2']['name']} {data['bw2']['style']}'
+            embed.add_field(
+                name = f"`{'BATTERS':<24} {'R':<3} {'B':<3} {'SR':<3}`", inline = False,
+                value = f"""`{bt1n:<24} {data['bt1']['runs']:<3} {data['bt1']['balls']:<3} {round(float(data['bt1']['sr'])):<3}`\n`{bt2n:<24} {data['bt2']['runs']:<3} {data['bt2']['balls']:<3} {round(float(data['bt2']['sr'])):<3}`""",
+            )
+            embed.add_field(
+                name = f"`{'BOWLERS':<22} {'O':<4} {'M':<2} {'R':<3} W`", inline = False,
+                value = f"""`{bw1n:<22} {data['bw1']['overs']:<4} {data['bw1']['maiden']:<2} {data['bw1']['runs']:<3} {data['bw1']['wkts']}`\n`{bw2n:<22} {data['bw2']['overs']:<4} {data['bw2']['maiden']:<2} {data['bw1']['runs']:<3} {data['bw2']['wkts']}`""",
+            )
+        
+        # partnership = f"P'Ship: {data['teams']['t2s']} CRR: {data['match']['crr']} RRR: {data['match']['rrr']}\n"
+        
+        # timeline = f"**Timeline**\n"
+        # timeline += f"{data['match']['timeline']}\n"
+        
+        # embed.add_field(name="Status", value=data['match']['status'], inline=False)
+        # embed.add_field(name="Batters", value=batters, inline=False)
+        # embed.add_field(name="Partnership", value=partnership, inline=False)
+        # embed.add_field(name="Bowlers", value=bowlers, inline=False)
+        # embed.add_field(name="Timeline", value=timeline, inline=False)
 
         await ctx.send(embed=embed)
 
