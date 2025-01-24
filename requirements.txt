@@ -1,3 +1,4 @@
 discord
 python-dotenv
 beautifulsoup4
+requests
