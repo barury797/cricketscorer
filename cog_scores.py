@@ -1,115 +1,145 @@
+import asyncio
+import re
+import time
 import discord
 from discord.ext import commands
 from discord.ui import Select, View
-from livescore import matches_data, match_data
+from livescore import get_matches, get_match
 
 class Scores(commands.Cog):
-    def __init__(self, bot): 
-        self.matches_data = None
-        self.bot = bot
-
-    @commands.command(name='score', aliases=['s'], help='Get live cricket score', usage='score <match_index>')
-    async def score(self, ctx, match_index: int):
-        if not self.matches_data: self.matches_data = await matches_data() 
-        data = await match_data(self.matches_data[match_index-1]['link'], category='all')
-        print(data)
-
-        if not data: await ctx.send("Could not fetch match data.")
-        
-        embed = discord.Embed(
-            title = f"`{data['teams']['t1n']:<24} {data['teams']['t1s']:<6}`\n`{data['teams']['t2n']:<24} {data['teams']['t2s']:<6}`",
-            color = discord.Color.blue()
-        )
-        emoji_map = {
-            '•': '<:0runs:1332339862719955066>',
-            '1': '<:1run:1332339852036935812>',
-            '1w': '<:1run:1332339852036935812>',
-            '2': '<:2runs:1332339857598447748>',
-            '3': '<:3runs:1332339860559761488>',
-            '4': '<:4runs:1332339865022496828>',
-            '5': '<:5runs:1332339869904670801>',
-            '6': '<:6runs:1332339867887337594>',
-            'W': '<:wicket:1332341339169361940>'
-            # Add more mappings as needed
+    def __init__(self, bot):
+        self.bot = bot 
+        self.MATCHES_CACHE_TTL, self.MATCH_CACHE_TTL = 90, 30
+        self.matches_data, self.matches_last_cache = [], None
+        self.match_data, self.match_last_cache = {}, {}
+        self.emoji_map = {
+            '•': '<:0r:1332984983681499187>',
+            '1': '<:1r:1332984994326642708>',
+            '2': '<:2r:1332985073972154430>',
+            '3': '<:3r:1332985168771678322>',
+            '4': '<:4r:1332985235226492999>',
+            '5': '<:5r:1332985370094342219>',
+            '6': '<:6r:1332985482698559534>',
+            '1b': '<:1b:1332984986239893534>',
+            '2b': '<:2b:1332985066061697104>',
+            '3b': '<:3b:1332985160198520954>',
+            '4b': '<:4b:1332985227714236487>',
+            '1w': '<:1w:1332984996813865031>',
+            '2w': '<:2w:1332985077021544468>',
+            '3w': '<:3w:1332985171527471104>',
+            '4w': '<:4w:1332985237600337980>',
+            '5w': '<:5w:1332985372623372368>',
+            '1lb': '<:1lb:1332984989100281856>',
+            '2lb': '<:2lb:1332985069060755490>',
+            '3lb': '<:3lb:1332985163466145853>',
+            '4lb': '<:4lb:1332985230100926497>',
+            '1nb': '<:1nb:1332984991545557043>',
+            '2nb': '<:2nb:1332985071237468170>',
+            '3nb': '<:3nb:1332985166246838353>',
+            '4nb': '<:4nb:1332985232525230123>',
+            '5nb': '<:5nb:1332985365048332363>',
+            '6nb': '<:6nb:1332985480043696148>',
+            '7nb': '<:7nb:1332985485198626898>',
+            '5pen': '<:5pen:1332985368005447750>',
+            'W': '<:wk:1332996980066222090>',
+            'W+1': '<:w1:1332996969651638394>',
+            'W+2': '<:w2:1332996974902906971>',
+            'W+3': '<:w3:1332996976748531846>',
         }
-
-        # Extract and flatten the timeline data with emoji replacements
-        balls = [(over, emoji_map.get(ball, ball)) for over in sorted(data['match']['timeline'].keys(), reverse=True) for ball in data['match']['timeline'][over]]
-        last_8_balls = balls[:20]
-
-        formatted_balls, prev_over = [], last_8_balls[0][0]
-        for over, ball in last_8_balls:
-            if over != prev_over: formatted_balls.append('<:divider:1332346301207023707>')
-            formatted_balls.append(ball)
-            prev_over = over
-        formatted_balls_str = ' '.join([ball for ball in formatted_balls])
-
-        # Add the field to the embed
-        embed.add_field(
-            name=data['match']['status'], 
-            value=f"{formatted_balls_str}", 
-            inline=False
-        )
-        if data['bt1']['name']:
-            bt1n = f'{data['bt1']['name']} {data['bt1']['style']}'
-            bt2n = f'{data['bt2']['name']} {data['bt2']['style']}'
-            bw1n = f'{data['bw1']['name']} {data['bw1']['style']}'
-            bw2n = f'{data['bw2']['name']} {data['bw2']['style']}'
-            embed.add_field(
-                name = f"`{'BATTERS':<24} {'R':<3} {'B':<3} {'SR':<3}`", inline = False,
-                value = f"""`{bt1n:<24} {data['bt1']['runs']:<3} {data['bt1']['balls']:<3} {round(float(data['bt1']['sr'])):<3}`\n`{bt2n:<24} {data['bt2']['runs']:<3} {data['bt2']['balls']:<3} {round(float(data['bt2']['sr'])):<3}`""",
-            )
-            embed.add_field(
-                name = f"`{'BOWLERS':<22} {'O':<4} {'M':<2} {'R':<3} W`", inline = False,
-                value = f"""`{bw1n:<22} {data['bw1']['overs']:<4} {data['bw1']['maiden']:<2} {data['bw1']['runs']:<3} {data['bw1']['wkts']}`\n`{bw2n:<22} {data['bw2']['overs']:<4} {data['bw2']['maiden']:<2} {data['bw1']['runs']:<3} {data['bw2']['wkts']}`""",
-            )
-        
-        # partnership = f"P'Ship: {data['teams']['t2s']} CRR: {data['match']['crr']} RRR: {data['match']['rrr']}\n"
-        
-        # timeline = f"**Timeline**\n"
-        # timeline += f"{data['match']['timeline']}\n"
-        
-        # embed.add_field(name="Status", value=data['match']['status'], inline=False)
-        # embed.add_field(name="Batters", value=batters, inline=False)
-        # embed.add_field(name="Partnership", value=partnership, inline=False)
-        # embed.add_field(name="Bowlers", value=bowlers, inline=False)
-        # embed.add_field(name="Timeline", value=timeline, inline=False)
-
-        await ctx.send(embed=embed)
+# -------------------------------------------------- Commands -------------------------------------------------- #
+    @commands.command(name='score', aliases=['s'], help='Get live cricket score', usage='score <match_index>')
+    async def score(self, ctx, match_index: int=None):
+        if not match_index: return discord.Embed(title="Match index not given.", color=discord.Color.red())
+        await ctx.send(embed=await self.get_score(match_index))
 
     @commands.command(name='matches', aliases=['m'], help='Get live cricket matches')
     async def matches(self, ctx):
-        self.matches_data = await matches_data()
+        self.matches_data = await self.get_matches_data()
         if not self.matches_data:
-            await ctx.send("No live matches at the moment.")
-            return
+            return await ctx.send("No live matches at the moment.")
 
         embed = discord.Embed(title="Live Cricket Matches", color=discord.Color.blue())
-        options = []
-        for index, match in enumerate(self.matches_data, start=1):
+        options = [
+            discord.SelectOption(
+                label=f"{i + 1}. {' vs '.join(m['score'].keys())}",
+                description=m['status'] or "",
+                value=str(i + 1)
+            ) for i, m in enumerate(self.matches_data)
+        ]
+
+        for i, match in enumerate(self.matches_data, start=1):
             teams = " vs ".join(match['score'].keys())
             scores = " | ".join([f"{team}: {score}" for team, score in match['score'].items() if score])
-            match_time = match['time'] if match['time'] else ""
-            match_status = f'{match['status']}' if match['status'] else ""
             embed.add_field(
-                name=f"{index}. {teams} - {match_time}", 
-                value=f"⠀ {scores}\n⠀ __{match_status}__" if scores else f"⠀ {match_status}", 
+                name=f"{i}. {teams} - {match['time'] or ''}",
+                value=f"⠀ {scores}\n⠀ __{match['status']}__" if scores else f"⠀ {match['status']}",
                 inline=False
             )
-            options.append(discord.SelectOption(label=f"{index}. {teams}", description=match_status, value=str(index)))
-        
+
         select = Select(placeholder="Choose a match to get the score", options=options)
 
         async def select_callback(interaction):
-            match_index = int(select.values[0])  # Extract the index
             await interaction.response.defer()
-            await ctx.invoke(self.score, match_index=match_index)
+            await ctx.invoke(self.score, match_index=int(select.values[0]))
 
         select.callback = select_callback
-        view = View()
-        view.add_item(select)
+        await ctx.send(embed=embed, view=View().add_item(select))
 
-        await ctx.send(embed=embed, view=view)
+
+# -------------------------------------------------- Helper Functions -------------------------------------------------- #
+    async def get_matches_data(self):
+        if 'matches' not in self.matches_data or time.time() - self.matches_data['matches'] > self.MATCH_CACHE_TTL:
+            print(f"Fetching fresh data for matches")
+            self.matches_data = await asyncio.to_thread(get_matches)
+            self.matches_last_cache = time.time()
+        else:
+            print(f"Using cached data for matches")
+        
+        return self.matches_data
+
+    async def get_score(self, match_index):
+        if not self.matches_data: self.matches_last_cache = await self.get_matches_data() 
+        url = self.matches_data[match_index-1]['link']
+        
+        if url in self.match_last_cache and time.time() - self.match_last_cache[url] < self.MATCH_CACHE_TTL:
+            print(f"Using cached data for: {url}")
+            return self.match_data[url]
+        else:
+            print(f"Fetching fresh data for: {url}")
+            data = await asyncio.to_thread(get_match, url)
+
+        if not data: return discord.Embed(title="Match not found.", color=discord.Color.red())
+
+        t1 = f'__{data['teams']['t1n']}__: {data['teams']['t1s']}'
+        t2 = f'__{data['teams']['t2n']}__: {data['teams']['t2s']}'
+        embed = discord.Embed(title=f"{t1}\n{t2}", color=discord.Color.blue())
+
+        balls = [(over, self.emoji_map.get(ball, ball))
+            for over in sorted(data['match']['timeline'], reverse=True)
+            for ball in data['match']['timeline'][over]][:21]
+
+        formatted_balls, prev_over = [], None  # Format timeline with dividers
+        for over, ball in balls:
+            if over != prev_over and prev_over is not None: formatted_balls.append('<:divider:1332996954824900672>')
+            formatted_balls.append(ball); prev_over = over
+
+        status2 = "`\n`".join(part.strip() for part in data['match']['status2'].split('•'))
+        embed.add_field(name=data['match']['status'], value=f"{' '.join(formatted_balls)}\n`{status2.strip()}`", inline=False)
+
+        batter_data, bowler_data = [], []
+        for i in range(1, 3): # Add batters to embed
+            if data[f'bt{i}'] and data[f'bt{i}']['name']: # If batter exists
+                batter_data.append(f"`{data[f'bt{i}']['name']:<24} {data[f'bt{i}']['runs']:<3} {data[f'bt{i}']['balls']:<3} {round(float(data[f'bt{i}']['sr'])):<3}`")
+        if batter_data: embed.add_field(name=f"`{'BATTERS':<24} {'R':<3} {'B':<3} {'SR':<3}`", value="\n".join(batter_data), inline=False)
+
+        for i in range(1, 3): # Add bowlers to embed
+            if data.get(f'bw{i}') and data[f'bw{i}']['name']: # If bowler exists
+                bowler_data.append(f"`{data[f'bw{i}']['name']:<22} {data[f'bw{i}']['overs']:<4} {data[f'bw{i}']['maiden']:<2} {data[f'bw{i}']['runs']:<3} {data[f'bw{i}']['wkts']}`")
+        if bowler_data: embed.add_field(name=f"`{'BOWLERS':<22} {'O':<4} {'M':<2} {'R':<3} W`", value="\n".join(bowler_data), inline=False)
+
+        self.match_data[url] = embed
+        self.match_last_cache[url] = time.time()
+        return embed
 
 async def setup(bot):
     await bot.add_cog(Scores(bot))
