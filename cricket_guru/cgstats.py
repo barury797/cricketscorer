@@ -1,7 +1,7 @@
 import sqlite3
 import asyncio
 
-db = sqlite3.connect("g:/cricket/cricketscorer/cricket_guru/cricketguru.db")
+db = sqlite3.connect("cricket_guru/cricketguru.db")
 cursor = db.cursor()
 
 def overs_to_balls(overs):
@@ -69,6 +69,20 @@ async def add_match(match_date, total_overs, team1, team1_score, team1_overs, te
         print(f"Error adding match: {e}")
         db.rollback()
         return False
+    
+async def get_match(match_id):
+    try:
+        cursor.execute('SELECT * FROM matches WHERE id = ?', (match_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        return f"Error retrieving match: {e}"
+
+async def delete_match(match_id):
+    try:
+        cursor.execute('DELETE FROM matches WHERE id = ?', (match_id,))
+    except Exception as e:
+        return f"Error deleting match: {e}"
+    return None
 
 async def main():
     print(await get_head_to_head("rt", "jg"))
