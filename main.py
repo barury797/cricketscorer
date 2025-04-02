@@ -23,9 +23,11 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to load extension {extension}: {e}")
 
-@bot.before_invoke
-async def before_command(ctx):
-    print(f"Command '{ctx.command}' is being invoked.")    
+    await bot.tree.sync()
+
+# @bot.before_invoke
+# async def before_command(ctx):
+#     print(f"Command '{ctx.command}' is being invoked.")    
 
 # Handle Command Errors
 @bot.event
@@ -33,9 +35,6 @@ async def on_command_error(ctx, error):
     # If it's a command not found error
     if isinstance(error, commands.CommandNotFound):
         await ctx.send("Sorry, that command doesn't exist!")
-    # If it's a missing argument error
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"Missing required argument: {error}")
     # Handle all other errors
     else:
         await ctx.send(f"An error occurred: {error}")
