@@ -4,7 +4,7 @@ import time
 import discord
 from discord.ext import commands
 from discord.ui import Select, View
-from livescore import get_matches, get_match
+from match_score.livescore import get_matches, get_match
 
 class Scores(commands.Cog):
     def __init__(self, bot):
